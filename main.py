@@ -12,11 +12,11 @@ import pandas as pd
 class SimpleNN(nn.Module):
     def __init__(self):
         super(SimpleNN, self).__init__()
-        self.fc1 = nn.Linear(28 * 28, 128)
-        self.fc2 = nn.Linear(128, 256)
-        self.fc3 = nn.Linear(256, 256)
-        self.fc4 = nn.Linear(256, 256)
-        self.fc5 = nn.Linear(256, 10)  # 10 output classes for digits 0-9
+        self.fc1 = nn.Linear(28 * 28, 512)  # 512 neurons
+        self.fc2 = nn.Linear(512, 256)       # 256 neurons
+        self.fc3 = nn.Linear(256, 256)       # Another 256 neurons
+        self.fc4 = nn.Linear(256, 256)       # Another 256 neurons
+        self.fc5 = nn.Linear(256, 10)        # Output layer for 10 classes
 
     def forward(self, x):
         x = x.view(x.size(0), -1)  # Flatten the input
@@ -24,7 +24,7 @@ class SimpleNN(nn.Module):
         x = F.relu(self.fc2(x))
         x = F.relu(self.fc3(x))
         x = F.relu(self.fc4(x))
-        x = self.fc5(x)  # No activation here, apply softmax later
+        x = self.fc5(x)  # No activation here
         return x
 
 # Set Streamlit page configuration
