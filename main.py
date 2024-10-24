@@ -2,23 +2,27 @@ from streamlit_drawable_canvas import st_canvas
 import streamlit as st
 import numpy as np
 from PIL import Image
-import tensorflow as tf
+import torch
+import torch.nn.functional as F
 import time
 import pandas as pd
 
+# Set Streamlit page configuration
 st.set_page_config(
-    page_title="Tensorflow Model",
+    page_title="PyTorch Model",
     page_icon="💎",
     layout="centered",
     initial_sidebar_state="expanded",
 )
 
 time.sleep(0.1)
-tf.keras.backend.clear_session()
 
+# Load the PyTorch model
 @st.cache_resource
 def load_model():
-    return tf.keras.models.load_model('model.keras')
+    model = torch.load('model.pth', map_location=torch.device('cpu'))
+    model.eval()
+    return model
 
 model = load_model()
 
@@ -27,11 +31,7 @@ data = {
     'Neurons': [128, 256, 256, 256, 10]
 }
 
-def stream_data(s):
-    for word in s.split(" "):
-        yield word + " "
-        time.sleep(0.2)
-
+# Helper functions for saving and loading comments
 def load_comments():
     try:
         return pd.read_csv('comments.csv')
@@ -46,9 +46,11 @@ def save_comment(name, comment):
 
 st.toast("Scroll for more!", icon="🔽")
 st.write("# MNIST Digit Recognition")
+st.write("###### Parameter Count: `1,480,458` ")
 
 st.write('#### Draw a digit (0 - 9) below')
 
+# Canvas for drawing the digit
 canvas_result = st_canvas(
     fill_color="rgba(255, 165, 0, 0.3)",
     stroke_width=10,
@@ -61,6 +63,7 @@ canvas_result = st_canvas(
     key="canvas",
 )
 
+# Preprocess and predict the drawn image
 if canvas_result.image_data is not None:
     input_numpy_array = np.array(canvas_result.image_data)
     input_image = Image.fromarray(input_numpy_array.astype('uint8'), 'RGBA')
@@ -68,24 +71,29 @@ if canvas_result.image_data is not None:
 
     input_image_gs_np = np.asarray(input_image_gs, dtype=np.float32)
     image_pil = Image.fromarray(input_image_gs_np)
-    new_image = image_pil.resize((28, 28))
+    new_image = image_pil.resize((28, 28))  # Resizing to MNIST 28x28
     input_image_gs_np = np.array(new_image)
 
-    tensor_image = np.expand_dims(input_image_gs_np, axis=-1)
-    tensor_image = np.expand_dims(tensor_image, axis=0)
+    tensor_image = np.expand_dims(input_image_gs_np, axis=0)
+    tensor_image = np.expand_dims(tensor_image, axis=0)  # Add batch and channel dimensions
 
+    # Normalize the image as per MNIST
     mean, std = 0.1307, 0.3081
     tensor_image = (tensor_image - mean) / std
+    tensor_image = torch.tensor(tensor_image, dtype=torch.float32)
 
-    predictions = model.predict(tensor_image)
-    output = np.argmax(predictions)
-    certainty = np.max(predictions)
+    # Make prediction using PyTorch model
+    with torch.no_grad():
+        predictions = model(tensor_image)
+        output = torch.argmax(F.softmax(predictions, dim=1), dim=1).item()
+        certainty = torch.max(F.softmax(predictions, dim=1)).item()
 
+    # Display the prediction and certainty
     st.write(f'# Prediction: \v`{str(output)}`')
-
     st.write(f'##### Certainty: \v`{certainty * 100:.2f}%`')
-    st.write("###### Model `v2.0.8`, Parameter Count: `1,480,458`")
+    st.write("###### Model `v2.0.8`")
     st.divider()
+    
     st.write("### Image As a Grayscale `NumPy` Array")
     st.write(input_image_gs_np)
 
@@ -94,41 +102,48 @@ if canvas_result.image_data is not None:
 
     st.write("##### \n")
 
+    # Display metrics
     col1, col2, col3 = st.columns(3)
     
     col1.metric(label="Epochs", value=10, delta=9, help="One epoch refers to one complete pass through the entire training dataset.")
-
     col2.metric(label="Accuracy", value="97.06%", delta="0.52%", help="Total accuracy of the model which is calculated based on the test data.")
-
     col3.metric(label="Model Train Time", value="0.18h", delta="0.04h", help="Time required to fully train the model with specified epoch value. (in hours)", delta_color="inverse")
 
     st.divider()
+    
+    # Neurons chart
     st.write("# Number of Neurons")
-    st.write("# ")
     df = pd.DataFrame(data)
     st.bar_chart(df.set_index('Layer'), x_label="Layer Number", y_label="Neurons")
+    st.write("# ")
+
+    # Softmax equation
+    st.write("Layer 5 Softmax Activation Function")
+    st.latex(r"softmax({z})=\sigma(\mathbf{z})_i = \frac{e^{z_i}}{\sum_{j=1}^{K} e^{z_j}}")
     
     st.divider()
 
+    # Footer
     st.markdown("""
     <img src="https://www.cutercounter.com/hits.php?id=hxpcokn&nd=9&style=1" border="0" alt="website counter"></a>
     """, unsafe_allow_html=True)
     st.write("###### Credits to `Ege Güvener` / `@egegvner` @2024")
 
+    # Comments section
     st.write("# Leave a Comment")
-
     name = st.text_input('Name')
     comment = st.text_area('Comment')
 
-    if st.button('Submit', type = "primary"):
+    if st.button('Submit', type="primary"):
         if name and comment:
             save_comment(name, comment)
             st.success('Comment submitted successfully!')
         elif name == "":
             st.error("Don't you have a name?")
         elif comment == "":
-            st.error("Why would you post a empty comment?")
+            st.error("Why would you post an empty comment?")
 
+    # Display existing comments
     st.subheader('Existing Comments')
     comments = load_comments()
     for i, row in comments.iterrows():
