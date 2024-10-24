@@ -3,9 +3,29 @@ import streamlit as st
 import numpy as np
 from PIL import Image
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 import time
 import pandas as pd
+
+# Define your neural network architecture
+class SimpleNN(nn.Module):
+    def __init__(self):
+        super(SimpleNN, self).__init__()
+        self.fc1 = nn.Linear(28 * 28, 128)
+        self.fc2 = nn.Linear(128, 256)
+        self.fc3 = nn.Linear(256, 256)
+        self.fc4 = nn.Linear(256, 256)
+        self.fc5 = nn.Linear(256, 10)  # 10 output classes for digits 0-9
+
+    def forward(self, x):
+        x = x.view(x.size(0), -1)  # Flatten the input
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = F.relu(self.fc4(x))
+        x = self.fc5(x)  # No activation here, apply softmax later
+        return x
 
 # Set Streamlit page configuration
 st.set_page_config(
@@ -20,8 +40,9 @@ time.sleep(0.1)
 # Load the PyTorch model
 @st.cache_resource
 def load_model():
-    model = torch.load('model.pth', map_location=torch.device('cpu'))
-    model.eval()
+    model = SimpleNN()  # Create an instance of your model
+    model.load_state_dict(torch.load('model.pth', map_location=torch.device('cpu')))
+    model.eval()  # Switch to evaluation mode
     return model
 
 model = load_model()
